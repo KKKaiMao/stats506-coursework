@@ -1,0 +1,399 @@
+---
+title: "Problem Set 1"
+author: "Kai Mao"
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    self-contained: true
+  pdf:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    includes:
+      in-header: header.tex
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Problem 1 - Wine Data
+
+### a. Code on how to import the data
+
+```{r, echo=TRUE}
+# Import the data
+#' @description Import the wine dataset from a specified path and assign column names.
+#' @param filePath The path to the wine dataset file.
+#' @return No return value, directly creates a dataFrame
+wine <- read.csv("C:\\Users\\Feixing\\Desktop\\stats 506\\data\\Problem Set 1\\wine\\wine.data", header = FALSE)
+# Give appropriate column names
+colnames(wine) <- c("Class", "Alcohol", "Malic_acid", "Ash","Alcalinity_of_ash", "Magnesium", 
+                    "Total_phenols", "Flavanoids", "Nonflavanoid_phenols", "Proanthocyanins", 
+                    "Color_intensity", "Hue", "OD280/OD315_of_diluted_wines", "Proline")
+# Display the first few lines of data to confirm that the import is correct
+head(wine)
+```
+
+### b. Check and report that the number of wines
+
+```{r, echo=TRUE}
+# Use the table function to calculate the amount of each type of wine
+#' @description Calculate and report the count of each wine class from the dataset.
+wine_class <- table(wine$Class)
+#' @details Outputs are formatted using cat and sprintf for clear presentation.
+cat(sprintf("Class 1: %d\nClass 2: %d\nClass 3: %d\n", wine_class[1], wine_class[2], wine_class[3]))
+```
+### c. Use the data to answer the following questions: 
+
+#### 1.Find the correlation between alcohol content and color intensity
+
+```{r, echo=TRUE}
+#' @description Calculate and output the correlation coefficient between alcohol content and color intensity.
+whole_cor <- cor(wine$Alcohol,wine$Color_intensity)
+# Output the correlation coefficient
+cat(sprintf("The correlation between alcohol content and color intensity is %.4f\n", whole_cor))
+```
+#### 2. Find the highest and lowest correlation 
+
+```{r, echo=TRUE}
+# Calculate the correlations of the three categories separately
+class1_cor <- cor(wine$Alcohol[wine$Class==1], wine$Color_intensity[wine$Class==1])
+class2_cor <- cor(wine$Alcohol[wine$Class==2], wine$Color_intensity[wine$Class==2])
+class3_cor <- cor(wine$Alcohol[wine$Class==3], wine$Color_intensity[wine$Class==3])
+corlist <- c(class1_cor, class2_cor, class3_cor)
+max_cor <- max(corlist)
+min_cor <- min(corlist)
+max_class <- which(corlist == max_cor)
+min_class <- which(corlist == min_cor)
+# Output the highest and lowest correlation values and their corresponding categories
+cat(sprintf("Class %d has the highest correlation: %.4f\n", max_class, max_cor))
+cat(sprintf("Class %d has the lowest correlation: %.4f\n", min_class, min_cor))
+```
+
+#### 3. Find the alcohol content of the wine with the highest color intensity
+
+```{r, echo=TRUE}
+max_color_index <- which.max(wine$Color_intensity)
+max_color_alcohol <- wine$Alcohol[max_color_index]
+# Find and display the alcohol content of the wine with the highest color intensity
+cat(sprintf("The alcohol content of the wine with the highest color intensity is: %.4f, the highest color intensity is: %.4f\n", max_color_alcohol, max(wine$Color_intensity)))
+```
+
+#### 4. Find the percentage of wines had a higher content of proanthocyanins compare to ash
+
+```{r, echo=TRUE}
+higher_proanthocyanins_number <- sum(wine$Proanthocyanins > wine$Ash)
+percentage <- (higher_proanthocyanins_number / nrow(wine)) * 100
+# Output the percentage of wines had a higher content of proanthocyanins compare to ash
+cat(sprintf("The percentage of wines had a higher content of proanthocyanins compared to ash: %.4f%% \n", percentage))
+```
+
+### d. Create a table identifying the average value of each variable, providing one row for the overall average, and one row per class with class averages.
+
+```{r, echo=TRUE}
+# Compute the overall averages 
+average <- t(colMeans(wine[,-1]))
+
+# Calculate average values for each variable by class
+class_average <- aggregate(. ~ Class, data = wine, FUN = mean)
+class_average <- class_average[, -1]
+
+# Set column names to maintain consistency with the overall averages
+colnames(class_average) <- colnames(average)
+
+# Combine the overall average and class-specific averages into one table
+average_value <- rbind(average, class_average)
+
+# Output
+print(average_value)
+
+```
+
+### e. Carry out a series of t-tests to examine whether the level of phenols differs across the three classes.
+
+```{r, echo=TRUE}
+
+# t-test between Class 1 and Class 2
+t_test_1_2 <- t.test(wine$Total_phenols[wine$Class == 1], 
+                     wine$Total_phenols[wine$Class == 2])
+
+# t-test between Class 1 and Class 3
+t_test_1_3 <- t.test(wine$Total_phenols[wine$Class == 1], 
+                     wine$Total_phenols[wine$Class == 3])
+
+# t-test between Class 2 and Class 3
+t_test_2_3 <- t.test(wine$Total_phenols[wine$Class == 2], 
+                     wine$Total_phenols[wine$Class == 3])
+
+# Display t-test results
+t_test_1_2
+t_test_1_3
+t_test_2_3
+
+# Additional for minor extra credit: Manually calculate t-statistics and p-values
+# Calculate means and standard deviations for each class
+mean1 <- mean(wine$Total_phenols[wine$Class == 1])
+mean2 <- mean(wine$Total_phenols[wine$Class == 2])
+mean3 <- mean(wine$Total_phenols[wine$Class == 3])
+sd1 <- sd(wine$Total_phenols[wine$Class == 1])
+sd2 <- sd(wine$Total_phenols[wine$Class == 2])
+sd3 <- sd(wine$Total_phenols[wine$Class == 3])
+
+# Calculate sample sizes
+n1 <- sum(wine$Class == 1)
+n2 <- sum(wine$Class == 2)
+n3 <- sum(wine$Class == 3)
+
+# Manually compute t-statistics
+t_stat_1_2 <- (mean1 - mean2) / sqrt((sd1^2 / n1) + (sd2^2 / n2))
+t_stat_1_3 <- (mean1 - mean3) / sqrt((sd1^2 / n1) + (sd3^2 / n3))
+t_stat_2_3 <- (mean2 - mean3) / sqrt((sd2^2 / n2) + (sd3^2 / n3))
+
+# Compute degrees of freedom
+df_1_2 <- ((sd1^2 / n1) + (sd2^2 / n2))^2 / 
+          (((sd1^2 / n1)^2 / (n1 - 1)) + ((sd2^2 / n2)^2 / (n2 - 1)))
+
+df_1_3 <- ((sd1^2 / n1) + (sd3^2 / n3))^2 / 
+          (((sd1^2 / n1)^2 / (n1 - 1)) + ((sd3^2 / n3)^2 / (n3 - 1)))
+
+df_2_3 <- ((sd2^2 / n2) + (sd3^2 / n3))^2 / 
+          (((sd2^2 / n2)^2 / (n2 - 1)) + ((sd3^2 / n3)^2 / (n3 - 1)))
+
+# Compute p-values
+p_value_1_2 <- 2 * pt(-abs(t_stat_1_2), df = df_1_2)
+p_value_1_3 <- 2 * pt(-abs(t_stat_1_3), df = df_1_3)
+p_value_2_3 <- 2 * pt(-abs(t_stat_2_3), df = df_2_3)
+
+
+# Output results
+cat(sprintf("t-statistics and p-values between classes:\nClass 1 vs Class 2: t = %.4f, p = %g\nClass 1 vs Class 3: t = %.4f, p = %g\nClass 2 vs Class 3: t = %.4f, p = %g\n", 
+            t_stat_1_2, p_value_1_2, t_stat_1_3, p_value_1_3, t_stat_2_3, p_value_2_3))
+
+
+```
+
+
+## Problem 2 - AskAManager.org Data
+
+### a. Import the data into a data.frame in R.
+
+```{r, echo=TRUE}
+# Import data from a CSV file located on the local machine
+#' @description Imports the dataset from a specified CSV file path into an R dataframe.
+#' @param filePath String path to the dataset file.
+#' @return No return value, directly creates a dataframe named 'manager'.
+manager <- read.csv("C:\\Users\\Feixing\\Desktop\\stats 506\\data\\Problem Set 1\\AskAManager.csv")
+head(manager)
+```
+
+### b. Clean up the variable names. 
+
+```{r, echo=TRUE}
+#' @description Cleans and simplifies column names in the dataframe to enhance readability and usability.
+#' @param dataFrame The dataframe object containing the original data.
+#' @return Modifies the dataframe in place, changing column names.
+names(manager)
+names(manager) <- c("ID","Timestamp","Age","Job","Job_Title","Job_Context","Annual_Salary",
+                    "Additional_Compensation","Currency","Other_Currency","Income_Context",
+                    "Country","State","City","Overall_Professional_experience_Years",
+                    "Field_Professional_experience_Years","Highest_Education","Gender","Race")
+# Confirm changes by displaying the new column names
+names(manager)
+```
+
+### c. Restrict the data to those being paid in US dollars.
+
+```{r, echo=TRUE}
+# Number of observations before restricting the data
+initial_number <- nrow(manager)
+cat("Initial number of observations before restricting the data:", initial_number, "\n")
+
+# Restrict the data to those being paid in USD
+#' @description Filters entries based on currency, retaining only those with salaries in USD.
+#' @param dataFrame The dataframe with salary and currency information.
+#' @return Creates a filtered dataframe 'manager_usd' containing only USD entries.
+manager_usd <- subset(manager, Currency == "USD")
+usd_number <- nrow(manager_usd)
+# Output
+cat("Number of observations after restricting the data:", usd_number, "\n")
+```
+
+### d. Assume no one starts working before age 18.
+
+```{r, echo=TRUE}
+# Create a function to calculate the midpoint of age and work experience
+#' Convert age and experience range strings to numerical midpoints
+#' @description This function processes strings containing numeric ranges, converting them to their midpoint values.
+#' @param year A string containing a numeric range or a single numeric value.
+convert_to_midpoint <- function(year) {
+    num <- as.numeric(unlist(regmatches(year, gregexpr("[[:digit:]]+", year))))
+    if (length(num) > 1) {
+        return(mean(num))
+    } else {
+        return(num)
+    }
+}
+
+# Restrict the data to those worked after age 18
+# Apply the conversion function to age and experience data
+manager_usd$Age <- sapply(manager_usd$Age, convert_to_midpoint)
+manager_usd$Overall_Professional_experience_Years <- sapply(manager_usd$Overall_Professional_experience_Years, convert_to_midpoint)
+
+manager_usd$Field_Professional_experience_Years <- sapply(manager_usd$Field_Professional_experience_Years, convert_to_midpoint)
+
+# Filter the dataset to remove entries that do not meet logical age and experience criteria
+manager_usd_age <- subset(manager_usd, Age >= 18 & 
+                          Overall_Professional_experience_Years >= Field_Professional_experience_Years
+                          & (Age - 18) >= Overall_Professional_experience_Years)
+
+# Number of observations before restricting the data working after age 18
+usd_number <- nrow(manager_usd)
+cat("Number of observations before restricting age 18:", usd_number, "\n")
+
+# Number of observations after restricting the data working after age 18
+usd_age_number <- nrow(manager_usd_age)
+cat("Number of observations after restricting age 18:", usd_age_number, "\n")
+```
+
+### e. Eliminate any rows with extremely low or extremely high salaries.
+
+To focus on a realistic range of salaries and remove potential outliers, we determined the upper salary limit using the IQR method. This method helps identify and exclude extreme values that might skew our analysis.
+
+```{r, echo=TRUE}
+# Calculate the first and third quartiles and IQR
+Q1 <- quantile(manager_usd$Annual_Salary, 0.25)
+Q3 <- quantile(manager_usd$Annual_Salary, 0.75)
+IQR <- Q3 - Q1
+
+# Calculate the upper bound for salaries using the 1.5*IQR rule
+upper_bound <- Q3 + 1.5 * IQR
+
+# Print the calculated upper bound to verify
+cat("Calculated upper bound for salaries based on IQR method:", upper_bound, "\n")
+
+# Create a boxplot to visualize salary distribution with the identified upper bound
+boxplot(manager_usd$Annual_Salary, main="Box Plot of Annual Salaries",
+        ylab="Annual Salary", col="blue", ylim=c(0, upper_bound), outline=FALSE)
+axis(2, at=seq(0, upper_bound, by=20000), labels=seq(0, upper_bound, by=20000), las=1)
+
+# Exclude data with annual salaries below $1,000 and above the calculated upper bound
+salary_lower <- 1000
+manager_usd_age_salary <- subset(manager_usd_age, Annual_Salary >= salary_lower & Annual_Salary <= upper_bound)
+
+# Output the final sample size after filtering
+final_sample_size <- nrow(manager_usd_age_salary)
+cat("The final sample size after filtering is:", final_sample_size, "\n")
+```
+
+
+## Problem 3 - Palindromic Numbers
+
+### a. Write function isPalindromic that checks if a given positive integer is a palindrome.
+
+```{r, echo=TRUE}
+#' This function checks if a given positive integer is the same forward and backward,
+#' indicating if the number is palindromic.
+#' @param number A positive integer to be checked for palindromicity.
+#' @return A list containing:
+#' @return isPalindromic A logical value indicating if the input is palindromic.
+#' @return reversed The input number with its digits reversed.
+#' @examples
+#' isPalindromic(121) # returns list(isPalindromic = TRUE, reversed = 121)
+#' isPalindromic(123) # returns list(isPalindromic = FALSE, reversed = 321)
+#' @export
+isPalindromic <- function(number) {
+  if (!is.numeric(number) || number != as.integer(number) || number <= 0) {
+    stop("Input is not a positive integer.")
+  }
+  
+  # Converts a number to a string
+  number_str <- as.character(number)
+  
+  # Reverse number
+  reversed_str <- rev(strsplit(number_str, "")[[1]])
+  reversed_number <- as.integer(paste(reversed_str, collapse = ""))
+  
+  # Checks if the number is the same forward and backward
+  is_palindromic <- (number_str == paste(reversed_str, collapse = ""))
+  return(list(isPalindromic = is_palindromic, reversed = reversed_number))
+}
+
+# Test
+isPalindromic(39951)
+  
+```
+
+### b. Create a function nextPalindrome that finds the next palindromic number strictly greater than the input.
+
+```{r, echo=TRUE}
+#' This function calculates the smallest palindromic number that is strictly greater
+#' than the provided positive integer.
+#' @param number A positive integer to find the next palindrome for.
+#' @return The next palindromic number.
+#' @examples
+#' nextPalindrome(123) # returns 131
+#' nextPalindrome(738) # returns 747
+#' @export
+nextPalindrome <- function(number) {
+  if (!is.numeric(number) || number < 1 || number != as.integer(number)) {
+    stop("Input is not a positive integer.")
+  }
+  # Start checking from the next number
+  number <- number + 1
+  
+  # Adjust numbers that end in 0 to avoid unnecessary checks
+  while (number %% 10 == 0) {
+    number <- number + 1  
+  }
+  
+  # Find the next palindrome
+  while(TRUE) {
+    num_str <- as.character(number)
+    if (num_str == paste(rev(strsplit(num_str, "")[[1]]), collapse = "")) {
+      return(number)  
+    }
+    number <- number + 1
+  }
+}
+```
+
+
+### c. Find the next palindrome for each of the following
+
+```{r, echo=TRUE}
+#' Apply the nextPalindrome function to a list of numbers
+#' @export
+numbers <- c(391, 9928, 19272719, 109, 2)
+result <- sapply(numbers, nextPalindrome)
+for (i in 1:length(numbers)) {
+  cat(sprintf("The next palindrome after %d is %d.\n", numbers[i], result[i]))
+}
+
+```
+## References and Data Sources
+
+The datasets used in this project are obtained from the following sources:
+
+- **Wine Data**: This dataset is from the [UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/datasets/wine), primarily used for analyzing chemical properties of different types of wine.
+- **AskAManager.org Salary Data**: This salary data is from an ongoing salary survey at AskAManager.org, used to explore how various factors affect salary levels.
+- **Palindromic Numbers**: Demonstrates programming techniques and logical reasoning through the computation and verification of palindromic numbers.
+
+## Methods and Implementation
+
+All data analyses were performed in the R environment, employing a range of techniques including data import, data cleaning, statistical analysis, and result visualization.
+
+## Code and Documentation Repository
+
+- This document and related code are hosted on GitHub for review and sharing purposes. Access link: [GitHub Repository Link](https://github.com/KKKaiMao/stats506-coursework)
+
+## Acknowledgements
+
+Thanks to the course instructors and teaching assistants for their guidance on this assignment. Thanks to all data providers for supporting open data.
+
+## Notes
+
+The analyses in this document are for academic purposes only, intended to fulfill the requirements of a statistics course. While every reasonable effort has been made to ensure the accuracy of the analysis results, the content of this document represents only the views of the author.
+
