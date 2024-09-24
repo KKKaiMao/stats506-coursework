@@ -1,0 +1,693 @@
+---
+title: "Problem Set 2"
+author: "Kai Mao"
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    self-contained: true
+  pdf:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    includes:
+      in-header: header.tex
+---
+
+# Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+# Problem 1 - Dice Game
+
+## a. Implement this in different ways and compare them
+
+### 1. Version 1: Implement this game using a loop.
+
+```{r, echo=TRUE}
+#' Implement Dice Game Using Loops
+#'
+#' This function simulates a dice game using a loop. Each play costs $2.
+#' Rolling a 3 or 5 wins twice the roll value, otherwise the player loses $2.
+#'
+#' @param num Number of dice rolls
+#' @return Total winnings after all rolls
+#' @examples
+#' play_dice_v1(10)
+play_dice_v1 <- function(num) {
+  # Ensure consistent random number generation
+  # set.seed(123)
+  # Generate multiple dice rolls
+  rolls <- sample(1:6, num, replace = TRUE)
+  
+  # Initialize total winnings
+  winnings <- 0
+  
+  for (roll in rolls) {
+    # A roll of 3 or 5, you win twice your roll
+    if (roll == 3 | roll == 5) {
+      winnings <- winnings + 2 * roll - 2
+    } else {
+      # Cost of the game for other rolls
+      winnings <- winnings - 2
+    }
+  }
+  
+  # Return the total winnings
+  return(winnings)
+}
+# Test
+play_dice_v1(10)
+```
+
+### 2. Version 2: Implement this game using built-in R vectorized functions.
+
+```{r, echo=TRUE}
+#' Implement Dice Game Using Vectorization
+#'
+#' This function simulates the dice game using vectorized functions.
+#' It computes winnings or losses for multiple dice rolls in a single operation.
+#' Rolling a 3 or 5 wins twice the roll value, otherwise, the player loses $2.
+#'
+#' @param num Number of dice rolls
+#' @return Total winnings after all rolls
+#' @examples
+#' play_dice_v2(10)
+play_dice_v2 <- function(num){
+  # Ensure consistent random number generation
+  # set.seed(123)
+  # Generate multiple dice rolls
+  rolls <- sample(1:6, num, replace = TRUE)
+  
+  # Compute all winnings and losses
+  winnings <- ifelse(rolls == 3 | rolls == 5, 2 * rolls - 2, -2)
+  
+  # Sum up the winnings and losses
+  return(sum(winnings))
+}
+# Test
+play_dice_v2(10)
+```
+
+### 3. Version 3: Implement this by rolling all the dice into one and collapsing the die rolls into a single.
+
+```{r, echo=TRUE}
+#' Implement Dice Game Using a Table
+#'
+#' This function simulates the dice game by creating a frequency table
+#' of the dice rolls and compute winnings based on roll counts.
+#' Rolling a 3 or 5 wins twice the roll value, otherwise, the player loses $2.
+#'
+#' @param num Number of dice rolls
+#' @return Total winnings after all rolls
+#' @examples
+#' play_dice_v3(10)
+play_dice_v3 <- function(num) {
+  # Ensure consistent random number generation
+  # set.seed(123)
+  # Generate dice rolls
+  rolls <- sample(1:6, num, replace = TRUE)
+  
+  # Create a frequency table of the dice rolls
+  results <- table(rolls)
+  winnings <- 0
+  
+  # Calculate winnings for roll of 3
+  if ("3" %in% names(results)) {
+    winnings <- winnings + (2 * 3 - 2)* results["3"]
+  }
+
+  # Calculate winnings for roll of 5
+  if ("5" %in% names(results)) {
+    winnings <- winnings + (2 * 5 - 2) * results["5"]
+  }
+  
+  # Subtract the cost for other rolls
+  non_win_rolls <- sum(results) - sum(results[c("3", "5")], na.rm = TRUE)
+  winnings <- winnings - 2 * non_win_rolls
+  
+  # Return the total winnings
+  return(unname(winnings))
+}
+# Test
+play_dice_v3(10)
+```
+
+### 4. Version 4: Implement this game by using one of the "functions.apply"
+
+```{r, echo=TRUE}
+#' Implement Dice Game Using sapply
+#'
+#' This function simulates a dice game where the rolls are processed using the sapply function.
+#' Rolling a 3 or 5 wins twice the roll value, otherwise, the player loses $2.
+#'
+#' @param num Number of dice rolls
+#' @return Total winnings after all rolls
+#' @examples
+#' play_dice_v4(10)
+play_dice_v4 <- function(num) {
+  # Ensure consistent random number generation
+  # set.seed(123)
+  # Generate dice rolls
+  rolls <- sample(1:6, num, replace = TRUE)
+  
+  # Use sapply to process each roll
+  winnings <- sapply(rolls, function(roll) {
+    if (roll == 3 || roll == 5) {
+      # Roll a 3 or 5 wins twice the roll value
+      return(2 * roll - 2)
+    } else {
+      # Lose $2
+      return(-2)
+    }
+  })
+  
+  # Sum up the winnings and losses
+  sum(winnings)
+}
+# Test
+play_dice_v4(10)
+```
+
+## b. Demonstrate that all versions work. Do so by running each a few times, once with an input a 3, and once with an input of 3,000.
+
+```{r, echo=TRUE}
+# Test once with an input a 3
+results_3 <- list(
+  V1 = play_dice_v1(3),
+  V2 = play_dice_v2(3),
+  V3 = play_dice_v3(3),
+  V4 = play_dice_v4(3)
+)
+
+# Test once with an input a 3000
+results_3000 <- list(
+  V1 = play_dice_v1(3000),
+  V2 = play_dice_v2(3000),
+  V3 = play_dice_v3(3000),
+  V4 = play_dice_v4(3000)
+)
+
+# Output the results of 3 rolls
+cat("Results of 3 rolls:\n")
+print(results_3)
+
+# Output the results of 3000 rolls
+cat("Results for 3000 rolls:\n")
+print(results_3000)
+```
+## c. Demonstrate that the four versions give the same result. 
+
+In order to ensure that all versions of the dice game behave consistently under the same conditions, `set.seed(123)` has been included at the beginning of each version's implementation. This approach is intended to synchronize the randomness of dice rolls across different versions, ensuring that each version processes the same sequence of dice rolls when tested under identical conditions.
+
+```{r, echo=TRUE}
+
+#' Implement Dice Game Using Loops
+#'
+#' This function simulates a dice game using a loop. Each play costs $2.
+#' Rolling a 3 or 5 wins twice the roll value, otherwise the player loses $2.
+#'
+#' @param num Number of dice rolls
+#' @return Total winnings after all rolls
+#' @examples
+#' play_dice_v1(10)
+play_dice_v1 <- function(num) {
+  # Ensure consistent random number generation
+  set.seed(123)
+  # Generate multiple dice rolls
+  rolls <- sample(1:6, num, replace = TRUE)
+  
+  # Initialize total winnings
+  winnings <- 0
+  
+  for (roll in rolls) {
+    # A roll of 3 or 5, you win twice your roll
+    if (roll == 3 | roll == 5) {
+      winnings <- winnings + 2 * roll - 2
+    } else {
+      # Cost of the game for other rolls
+      winnings <- winnings - 2
+    }
+  }
+  
+  # Return the total winnings
+  return(winnings)
+}
+
+
+#' Implement Dice Game Using Vectorization
+#'
+#' This function simulates the dice game using vectorized functions.
+#' It computes winnings or losses for multiple dice rolls in a single operation.
+#' Rolling a 3 or 5 wins twice the roll value, otherwise, the player loses $2.
+#'
+#' @param num Number of dice rolls
+#' @return Total winnings after all rolls
+#' @examples
+#' play_dice_v2(10)
+play_dice_v2 <- function(num){
+  # Ensure consistent random number generation
+  set.seed(123)
+  # Generate multiple dice rolls
+  rolls <- sample(1:6, num, replace = TRUE)
+  
+  # Compute all winnings and losses
+  winnings <- ifelse(rolls == 3 | rolls == 5, 2 * rolls - 2, -2)
+  
+  # Sum up the winnings and losses
+  return(sum(winnings))
+}
+
+
+#' Implement Dice Game Using a Table
+#'
+#' This function simulates the dice game by creating a frequency table
+#' of the dice rolls and compute winnings based on roll counts.
+#' Rolling a 3 or 5 wins twice the roll value, otherwise, the player loses $2.
+#'
+#' @param num Number of dice rolls
+#' @return Total winnings after all rolls
+#' @examples
+#' play_dice_v3(10)
+play_dice_v3 <- function(num) {
+  # Ensure consistent random number generation
+  set.seed(123)
+  # Generate dice rolls
+  rolls <- sample(1:6, num, replace = TRUE)
+  
+  # Create a frequency table of the dice rolls
+  results <- table(rolls)
+  winnings <- 0
+  
+  # Calculate winnings for roll of 3
+  if ("3" %in% names(results)) {
+    winnings <- winnings + (2 * 3 - 2)* results["3"]
+  }
+
+  # Calculate winnings for roll of 5
+  if ("5" %in% names(results)) {
+    winnings <- winnings + (2 * 5 - 2)  * results["5"]
+  }
+  
+  # Subtract the cost for other rolls
+  non_win_rolls <- sum(results) - sum(results[c("3", "5")], na.rm = TRUE)
+  winnings <- winnings - 2 * non_win_rolls
+  
+  # Return the total winnings
+  return(unname(winnings))
+}
+
+
+#' Implement Dice Game Using sapply
+#'
+#' This function simulates a dice game where the rolls are processed using the sapply function.
+#' Rolling a 3 or 5 wins twice the roll value, otherwise, the player loses $2.
+#'
+#' @param num Number of dice rolls
+#' @return Total winnings after all rolls
+#' @examples
+#' play_dice_v4(10)
+play_dice_v4 <- function(num) {
+  # Ensure consistent random number generation
+  set.seed(123)
+  # Generate dice rolls
+  rolls <- sample(1:6, num, replace = TRUE)
+  
+  # Use sapply to process each roll
+  winnings <- sapply(rolls, function(roll) {
+    if (roll == 3 || roll == 5) {
+      # Roll a 3 or 5 wins twice the roll value
+      return(2 * roll - 2)
+    } else {
+      # Lose $2
+      return(-2)
+    }
+  })
+  
+  # Sum up the winnings and losses
+  sum(winnings)
+}
+
+# Test the consistency of each version with 3 rolls
+results_same_3 <- list(
+  V1 = play_dice_v1(3),
+  V2 = play_dice_v2(3),
+  V3 = play_dice_v3(3),
+  V4 = play_dice_v4(3)
+)
+
+
+# Test once with an input a 3000
+results_same_3000 <- list(
+  V1 = play_dice_v1(3000),
+  V2 = play_dice_v2(3000),
+  V3 = play_dice_v3(3000),
+  V4 = play_dice_v4(3000)
+)
+
+# Output the results of 3 rolls
+cat("Results of 3 rolls:\n")
+print(results_same_3)
+
+# Output the results of 3000 rolls
+cat("Results for 3000 rolls:\n")
+print(results_same_3000)
+```
+
+## d. Use the microbenchmark package to clearly demonstrate the speed of the implementations.
+
+```{r, echo=TRUE}
+# Load the microbenchmark library for performance comparison
+library(microbenchmark)
+
+# Run the microbenchmark with consistent random number generation
+benchmark_1000 <- microbenchmark(
+  V1 = {set.seed(123); play_dice_v1(1000)},
+  V2 = {set.seed(123); play_dice_v2(1000)},
+  V3 = {set.seed(123); play_dice_v3(1000)},
+  V4 = {set.seed(123); play_dice_v4(1000)},
+  times = 100
+)
+
+benchmark_100000 <- microbenchmark(
+  V1 = {set.seed(123); play_dice_v1(100000)},
+  V2 = {set.seed(123); play_dice_v2(100000)},
+  V3 = {set.seed(123); play_dice_v3(100000)},
+  V4 = {set.seed(123); play_dice_v4(100000)},
+  times = 50
+)
+
+# Print the benchmark results to display them in the document
+print(benchmark_1000)
+print(benchmark_100000)
+
+```
+
+**Performance Comparison**  
+For 1,000 rolls:  
+Version 2 (V2) exhibits the best performance with an average time of 125.815 milliseconds, marked with a "b" in the cld column. Because V2 is vectorized, it turns out to be highly efficient when it comes to smaller data sets and is outperforming most of the versions.
+The second fastest is V1 with an average of 239.132 milliseconds and is flagged in the cld column with an "a" indicating the best performance within this test group, that is significantly different from those versions that are the slowest.
+Contrasting those are V3 and V4, which performed worse, with average times of 318.444 milliseconds and 829.020 milliseconds, respectively, labeled as "c" and "d." This indeed means that V4 lags way behind other versions and is inefficient at smaller sets of data.
+
+For 100,000 rolls:  
+V2 still does quite well here, averaging 9.088692 milliseconds, again marked with a "b" in the cld column, showing its efficiency and scalability on large data.
+Version 3 on average takes about 16.026536 milliseconds and hence is relatively performing well. It is marked with a "b" since this is at a competitive efficiency level at this scale.
+V1 averages 26.768430 milliseconds, while the best according to the cld column is marked as "a", which can be said to perform the best among the versions in larger datasets.
+V4, averaging 93.232506 ms denoted with "c", still runs badly, in particular for the larger data sets.
+
+**Conclusion**
+The V2 showed the best performance in all tests, and most noticeably when it dealt with large-scale data. This once again helps confirm that, in dealing with data, one should embrace vectorized operations. Loop-based and table-based approaches have acceptable efficiency for little datasets but show significant performance differences within larger data sets. V1 performed best in the 100,000 rolls test, probably because of its more efficient handling logic within larger datasets. V4 sapply method always works terribly, especially for large data, meaning there are serious problems with scalability and efficiency.
+In anticipation of large data volumes, the vectorization approach (V2) is recommended due to its superior efficiency and scalability.
+
+## e. Do you think this is a fair game?
+
+Of course it's not fair.
+
+### Firstly, we use code to prove
+
+```{r, echo=TRUE}
+#' Simulate a Dice Game
+#'
+#' This function simulates a dice game where the cost to play is $2. 
+#' A roll of 3 or 5 wins twice the value of the roll minus the cost of playing,
+#' while any other roll results in a loss equal to the cost.
+#'
+#' @param num_trials The number of times the game is played.
+#' @return The average result over all trials.
+#' @examples
+#' simulate_dice_game(100000)
+#' @export
+simulate_dice_game <- function(num_trials) {
+  # Ensure consistent random number generation
+  set.seed(123)
+  # Pre-allocate for speed
+  results <- numeric(num_trials)
+
+  # Compute all winnings and losses
+  for (i in 1:num_trials) {
+    roll <- sample(1:6, size = 1, replace = TRUE)
+    if (roll == 3 || roll == 5) {
+      results[i] <- 2 * roll - 2
+    } else {
+      results[i] <- -2
+    }
+  }
+  
+  # Compute the means
+  average_result <- mean(results)
+  return(average_result)
+}
+
+# Example
+simulate_dice_game(100000)
+```
+
+### To assess the fairness of a dice game, we calculate the expected value, which represents the average outcome for a player over many plays of the game.
+
+#### Calculating the Expected Value
+The expected value $E(X)$ of the game is calculated as follows:
+1. Determine the payoff for each outcome:
+   - Rolling a 3 or 5 results gain of $2 \times \text{roll} - 2$ (payout minus cost).
+   - Rolling any other number results in a loss of $-\$2$.
+
+2. Each outcome has a probability of $\frac{1}{6}$ because the die has 6 sides.
+
+The detailed calculation is:
+- For rolls of 1, 2, 4, or 6, the expected loss is: 
+  $$
+  \frac{4}{6} \times (-2) = -\frac{8}{6}
+  $$
+- For a roll of 3, the expected gain is: 
+  $$
+  \frac{1}{6} \times (6 - 2) = \frac{4}{6}
+  $$
+- For a roll of 5, the expected gain is: 
+  $$
+  \frac{1}{6} \times (10 - 2) = \frac{8}{6}
+  $$
+
+Adding these together, we obtain the total expected value:
+$$
+E(X) = -\frac{8}{6} + \frac{4}{6} + \frac{8}{6} = \frac{4}{6} = \frac{2}{3}
+$$
+
+This indicates that, on average, each play of the game yields a profit of approximately 67 cents for the player. Thus, based on the expected value calculation, this dice game is slightly favorable to the player.
+
+Therefore, it is not a fair game!
+
+
+# Problem 2 - Linear Regression
+
+## a. Rename the columns of the data to more reasonable lengths.
+
+```{r, echo=TRUE}
+# Load the dataset
+#' @description Import the cars dataset from a specified path and assign column names.
+#' @param filePath The path to the cars dataset file.
+#' @return No return value, directly creates a dataFrame
+cars <- read.csv("C:\\Users\\Feixing\\Desktop\\stats 506\\data\\Problem Set 2\\cars.csv")
+
+# Rename columns of the dataset
+names(cars) <- c("Height", "Length", "Width", "Driveline", "Engine_Type", "Hybrid", "Num_Forward_Gears", 
+                 "Transmission", "City_MPG", "Fuel_Type", "Highway_MPG", "Classification", "ID", "Make", 
+                 "Model_Year", "Year", "Horsepower", "Torque")
+
+# Display the first few lines of data to confirm that the import is correct
+head(cars)
+```
+
+## b. Restrict the data to cars whose Fuel Type is “Gasoline”.
+
+```{r, echo=TRUE}
+# Restrict the data to cars whose Fuel Type is “Gasoline”
+#' @description Filters the dataset to include only cars that use gasoline as fuel.
+#' @details This subset operation is performed on the `cars` data frame,
+#' and it selects rows where the `Fuel_Type` column matches "Gasoline".
+#' @return The first few rows of the filtered data frame are displayed
+#' using the `head` function to confirm the subset was correctly applied.
+gasoline_cars <- subset(cars, Fuel_Type == "Gasoline")
+
+# Display the first few rows to verify the correct application of the filter
+head(gasoline_cars)
+```
+
+## c. Examine the distribution of highway gas mileage.
+
+```{r, echo=TRUE}
+# Load necessary libraries for visualization and statistical analysis
+library(ggplot2)
+library(e1071)
+
+# Plotting the distribution of highway miles per gallon (MPG)
+#' @description Visualizes the distribution of highway MPG to identify skewness in the data.
+#' @details This plot helps in identifying the distribution characteristics of the data, checking for skewness.
+ggplot(gasoline_cars, aes(x = Highway_MPG)) +
+  geom_histogram(bins = 50, fill = "lightblue", color = "black") +
+  labs(title = "Distribution of Highway MPG", x = "Highway MPG", y = "Frequency") +
+  theme_minimal()
+
+# Calculate the skewness of highway MPG
+#' @description Calculates and prints the skewness value for highway MPG.
+#' @details Skewness value assesses the symmetry of the data distribution to determine if a transformation is necessary.
+skewness_value <- skewness(gasoline_cars$Highway_MPG, na.rm = TRUE)
+print(paste("Skewness of original data: ", skewness_value))
+
+# Based on skewness determine if log transformation is necessary
+#' @description Applies a log transformation to data if skewness is significant to improve its distribution.
+if (skewness_value > 1 || skewness_value < -1) {
+  gasoline_cars$Log_Highway_MPG <- log(gasoline_cars$Highway_MPG + 1)  # Plus 1 to avoid taking log of zero
+  # Plotting the distribution after log transformation
+  ggplot(gasoline_cars, aes(x = Log_Highway_MPG)) +
+    geom_histogram(bins = 50, fill = "yellow", color = "black") +
+    labs(title = "Distribution of Log-Transformed Highway MPG", x = "Log of Highway MPG", y = "Frequency") +
+    theme_minimal()
+} else {
+  cat("No significant skewness, transformation is not required.\n")
+}
+
+# Calculate skewness again for the log-transformed MPG
+#' @description Calculates the skewness of log-transformed highway MPG to verify the effectiveness of the transformation.
+skewness_log_value <- skewness(gasoline_cars$Log_Highway_MPG, na.rm = TRUE)
+print(paste("Skewness after log transformation: ", skewness_log_value))
+
+```
+
+Hence, the transformed variable is 'Log_Highway_MPG' variable, as it offers a more symmetric and normalized distribution ideal for further statistical modeling.
+
+## d. Fit a linear regression model predicting MPG on the highway. 
+
+### 1. Fit a linear regression model
+```{r, echo=TRUE}
+# Predicting Highway MPG Using Multiple Regression
+#' @description Converting the 'Year' into a categorical variable and fits a linear regression model to predict highway MPG.
+#' @details The model includes torque, horsepower, vehicle dimensions (height, length, width), and the year of the car as predictors. 
+#' @return The output is a summary of the model, providing coefficients and statistical significance for each predictor,
+# Ensure 'Year' is treated as a categorical variable for the regression analysis
+gasoline_cars$Year <- as.factor(gasoline_cars$Year)
+
+# Fit a linear regression model to predict highway MPG, using Log_Highway_MPG variable
+model <- lm(Log_Highway_MPG ~ Torque + Horsepower + Height + Length + Width + Year, data = gasoline_cars)
+
+# Display the summary of the model to review coefficients and statistical significance
+summary(model)
+```
+
+### 2. Discussion
+
+**Torque**:  
+- Coefficient (Estimate): The coefficient for torque is -0.002193. This suggests that for each unit increase in torque, the log-transformed highway MPG decreases by approximately 0.0022 units, holding other factors constant.  
+- Interpretation in Original Scale: Since the dependent variable is log-transformed, the coefficient can be interpreted as a percentage change in the original scale. Specifically, a 1-unit increase in torque results in approximately a 0.22% decrease in actual highway MPG.  
+- Standard Error: The standard error of this estimate is 0.000065, which indicates a high level of precision in the estimate.  
+- t Value: The t value of -33.746 is very high, indicating a strong, statistically significant relationship between torque and highway MPG.  
+- P Value: The p value is less than 2e-16, far below the 0.05 threshold, confirming that the effect of torque on highway MPG is highly statistically significant and unlikely to be due to chance.
+
+Other Variables:  
+- Horsepower: The positive coefficient of 0.0008766 indicates that for each unit increase in horsepower, the log-transformed highway MPG increases by approximately 0.0009 units.The relationship is statistically significant (p < 2e-16).  
+- Car Dimensions (Height, Length, Width):  
+- Height has a positive coefficient (0.0003889), suggesting that taller vehicles may have slightly higher highway MPG.  
+- Length shows a small, positive coefficient (0.00003391), but the effect is not statistically significant (p = 0.193).  
+- Width has a negative coefficient (-0.00008151), indicating that wider cars tend to have slightly lower highway MPG. This effect is statistically significant (p = 0.00226).  
+- Year: The coefficients for different years (relative to the 2009 baseline) suggest that year-to-year differences in automotive technology and efficiency standards affect highway MPG, though not all effects are statistically significant. For instance, 2012 has a marginally significant positive effect (p = 0.05240), implying some advancements in fuel efficiency.  
+
+Overall Model Fit:  
+- Multiple R-squared: 0.5626, suggesting that approximately 56.26% of the variability in log-transformed highway MPG is explained by the model. This indicates a reasonably good fit.  
+- Adjusted R-squared: 0.5618, which adjusts for the number of predictors in the model, also showing a strong fit.
+
+### 3. Explanation of the Additional Comments:
+The reason Year2009 does not appear in the model summary is because it has been designated as the reference category.
+
+## e. Refit the model (with ) and generate an interaction plot, showing how the relationship between torque and MPG changes as horsepower changes.
+
+```{r, echo =TRUE}
+# Load necessary libraries for plotting and interactions
+library(ggplot2)
+library(interactions)
+
+# Predicting Highway MPG Using Multiple Regression
+#' @description Converts 'Year' into a categorical variable and fits a linear regression model to predict Log-transformed highway MPG.
+#' @details This model incorporates an interaction between torque and horsepower and controls for vehicle dimensions (height, length, width), and the manufacturing year.
+#' @param gasoline_cars The dataframe containing vehicle data.
+#' @return Outputs an interaction plot illustrating the impact of torque at different levels of horsepower.
+#' @examples interact_plot(model, pred = Torque, modx = Horsepower, modx.values = horsepower_values, at = list(Year = "2012"), data = gasoline_cars, method = "regrid")
+# Ensure 'Year' is treated as a categorical variable for the regression analysis
+gasoline_cars$Year <- as.factor(gasoline_cars$Year)
+
+# Fit a linear regression model to predict highway MPG
+model_interaction <- lm(Log_Highway_MPG ~ Torque * Horsepower + Height + Length + Width + Year, data = gasoline_cars)
+
+# Select reasonable horsepower values
+horsepower_values <- c(170, 270, 370)
+
+# Generate and plot the interaction effect of torque on Log_Highway_MPG at different horsepower settings
+interaction_plot <- interact_plot(
+  model = model_interaction, 
+  pred = Torque, 
+  modx = Horsepower,
+  modx.values = horsepower_values,
+  at = list(Year = "2012"),
+  data = gasoline_cars, 
+  method = "regrid"
+)
+
+# Display the interaction plot
+print(interaction_plot)
+
+```
+
+**Discussion**
+
+-Relationship Between Torque and Horsepower: The plotting contains three lines for different amounts of horsepower. For all the levels of Horsepower, Log_Highway_MPG decreases with an increase in torque. This reflects that with increased torque, fuel efficiency decreases at all levels of considered horsepower.
+
+-Horsepower is a moderator in how torque affects fuel efficiency: at a higher level of horsepower-for example, 370-the dampening effect of torque is less. This may suggest that in vehicles with higher horsepower, the additional torque has a lesser effect on fuel efficiency, possibly due to advanced engine technologies or other performance optimization measures.
+
+-Impact of Torque on MPG: As the torque increases, the line graph of vehicles of all different horsepower levels all show a downward trend in MPG. This would support a hypothesis that torque is inversely related to fuel efficiency.
+
+## f Calculate $\hat{\beta}$ from d
+
+```{r, echo=TRUE}
+# Loading necessary libraries
+library(dplyr)
+library(tidyr)
+
+# Ensure the 'Year' variable is correctly treated as a categorical factor
+gasoline_cars$Year <- as.factor(gasoline_cars$Year)
+
+# Create the design matrix for the regression model
+X <- model.matrix(~ Torque + Horsepower + Height + Length + Width + Year, data = gasoline_cars)
+Y <- gasoline_cars$Log_Highway_MPG
+
+# Calculate the coefficients using matrix algebra
+beta_hat <- solve(t(X) %*% X) %*% t(X) %*% Y
+
+# Output the computed coefficients
+print(beta_hat)
+
+# Displaying the summary from the lm() function for comparison
+summary(model)
+```
+
+Hence, I get the same result as lm did prior.
+
+
+# References and Data Sources
+
+The datasets used in this project are obtained from the following sources:
+
+- **Cars Data**: This dataset is from the [CORGIS Project](https://corgis-edu.github.io/corgis/csv/cars/), used to explore the relationship between vehicle characteristics like torque and fuel efficiency.
+
+# Methods and Implementation
+
+All data analyses were performed in the R environment, employing a range of techniques including data import, data cleaning, statistical analysis, and result visualization.
+
+# Code and Documentation Repository
+
+This document and related code are hosted on GitHub for review and sharing purposes. Access link: [GitHub Repository Link](https://github.com/KKKaiMao/stats506-coursework)
+
+# Acknowledgements
+
+Thanks to the course instructors and teaching assistants for their guidance on this assignment. Thanks to all data providers for supporting open data.
+
+# Notes
+
+The analyses in this document are for academic purposes only, intended to fulfill the requirements of a statistics course. While every reasonable effort has been made to ensure the accuracy of the analysis results, the content of this document represents only the views of the author.
