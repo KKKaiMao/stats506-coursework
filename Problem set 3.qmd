@@ -1,0 +1,383 @@
+---
+title: "Problem Set 3"
+author: "Kai Mao"
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    self-contained: true
+  pdf:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    includes:
+      in-header: header.tex
+---
+
+# Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+# Problem 1 - Vision
+
+## a.Download the file VIX_D and DEMO_D and merge the two files.
+
+```{r, echo=TRUE}
+# Load necessary libraries
+library(dplyr)
+# For read xpt
+library(haven)
+
+# Read the VIX_D and DEMO_D dataset
+VIX_D <- read_xpt("C:\\Users\\Feixing\\Desktop\\stats 506\\data\\Problem Set 3\\VIX_D.XPT")
+DEMO_D <- read_xpt("C:\\Users\\Feixing\\Desktop\\stats 506\\data\\Problem Set 3\\DEMO_D.XPT")
+
+# Merging the datasets by using the SEQN variable
+merged_data <- merge(VIX_D, DEMO_D, by = "SEQN")
+
+# Print out total sample size, showing that it is now 6,980.
+cat("Total sample size after merging:", nrow(merged_data))
+```
+
+## b. Without fitting any models, estimate the proportion of respondents
+
+### Explanation of Age Grouping
+
+According to the dataset description, both males and females aged 12 to 150 years are included, and all individuals aged 85 and over are topcoded at 85 years.
+
+Consequently, when processing age data, I have set the age groups as 0-9, 10-19, 20-29, ..., 80-84, 85-150. This grouping not only follows the dataset’s encoding rules but also ensures that the analysis covers all possible age segments, including grouping all individuals aged 85 and over into a single category 85-150, to facilitate a comprehensive statistical analysis.
+
+### Code
+
+```{r, echo=TRUE}
+# Load necessary libraries
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+# Create age group boundaries
+age_breaks <- c(seq(0, 80, by = 10), 85, 150)
+
+# Use the cut function to create age groups
+merged_data$AgeGroup <- cut(merged_data$RIDAGEYR, breaks = age_breaks, right = FALSE, include.lowest = TRUE)
+
+# Calculate the proportion of individuals wearing glasses or contact lenses in each age group
+glasses_proportion <- merged_data %>%
+  filter(!is.na(VIQ220)) %>%
+  group_by(AgeGroup) %>%
+  summarise(Count = n(),
+            Glasses_Wearers_Count = sum(VIQ220 == 1, na.rm = TRUE),
+            Proportion = Glasses_Wearers_Count / Count)
+
+# Use kable to generate a formatted table and add styles with kableExtra
+kable(glasses_proportion, format = "html", caption = "Proportion of Glasses/Contact Lenses for Distance Vision Wearers")%>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## c. Fit three logistic regression models predicting whether a respondent wears glasses/contact lenses for distance vision.
+
+```{r, echo=TRUE}
+# Load necessary libraries
+library(dplyr)
+library(tidyr)
+library(broom)
+
+# Duplicate the original dataset to prevent modification of the original frame.
+merged_logistic_data <- merged_data %>%
+  # Filter out the 'Don't know' responses for VIQ220 before further processing.
+  filter(VIQ220 != 9) %>%
+  # Convert vision correction data into a binary format.
+  mutate(glasses = as.factor(VIQ220),
+         # Convert gender into a binary format, where female = 1 and male = 0.
+         gender = as.factor(RIAGENDR),
+         # Ensure that race is treated as a factor.
+         race = as.factor(RIDRETH1),
+         # Include Poverty Income Ratio as it is.
+         pir = INDFMPIR) %>%
+  # Select necessary columns for modeling.
+  select(glasses, RIDAGEYR, race, gender, pir)
+
+# Model 1: Age only.
+data1 <- filter(merged_logistic_data, !is.na(RIDAGEYR) & !is.na(glasses))
+model1 <- glm(glasses ~ RIDAGEYR, family = binomial(), data = data1)
+
+# Model 2: Age, race, and gender.
+data2 <- filter(data1, !is.na(race) & !is.na(gender))
+model2 <- glm(glasses ~ RIDAGEYR + race + gender, family = binomial(), data = data2)
+
+# Model 3: Age, race, gender, and Poverty Income Ratio.
+data3 <- filter(data2, !is.na(pir))
+model3 <- glm(glasses ~ RIDAGEYR + race + gender + pir, family = binomial(), data = data3)
+
+# Extract model coefficients and calculate odds ratios.
+coefficients_model1 <- tidy(model1, exponentiate = TRUE) #%>% mutate(Model = "Model 1")
+coefficients_model2 <- tidy(model2, exponentiate = TRUE) #%>% mutate(Model = "Model 2")
+coefficients_model3 <- tidy(model3, exponentiate = TRUE) #%>% mutate(Model = "Model 3")
+
+# Retrieve statistical information for each model.
+stats_model1 <- glance(model1) %>% mutate(Model = "Model 1")
+stats_model2 <- glance(model2) %>% mutate(Model = "Model 2")
+stats_model3 <- glance(model3) %>% mutate(Model = "Model 3")
+
+# Calculate pseudo R-squared.
+# Define null models for baseline comparison.
+null_model1 <- glm(glasses ~ 1, family = binomial(), data = data1)
+null_model2 <- glm(glasses ~ 1, family = binomial(), data = data2)
+null_model3 <- glm(glasses ~ 1, family = binomial(), data = data3)
+
+# Calculate pseudo R-squared values.
+pseudo_r2_model1_value <- 1 - as.numeric(logLik(model1) / logLik(null_model1))
+pseudo_r2_model2_value <- 1 - as.numeric(logLik(model2) / logLik(null_model2))
+pseudo_r2_model3_value <- 1 - as.numeric(logLik(model3) / logLik(null_model3))
+
+# Combine statistical information.
+all_models_stats <- bind_rows(
+  stats_model1 %>% select(Model, nobs, AIC) %>% mutate(Pseudo_R2 = pseudo_r2_model1_value),
+  stats_model2 %>% select(Model, nobs, AIC) %>% mutate(Pseudo_R2 = pseudo_r2_model2_value),
+  stats_model3 %>% select(Model, nobs, AIC) %>% mutate(Pseudo_R2 = pseudo_r2_model3_value)
+)
+
+# Display model statistics
+print(all_models_stats)
+
+# Combine all models' odds ratios.
+all_odds_ratios <- bind_rows(coefficients_model1, coefficients_model2, coefficients_model3)
+
+# Output the combined odds ratio table.
+print(all_odds_ratios)
+```
+
+## d. From the third model from the previous part, test whether the odds of men and women being wears of glasess/contact lenses for distance vision differs. Test whether the proportion of wearers of glasses/contact lenses for distance vision differs between men and women. Include the results of the each test and their interpretation.
+
+### Code
+
+```{r, echo=TRUE}
+logit_model3 <- tidy(model3, exponentiate = TRUE)
+print(logit_model3)
+```
+
+Based on the results of the third model, the estimated odds ratio for women is about 0.60, indicating that women are significantly less likely to wear glasses/contact lenses than men.
+
+###Test whether the proportion of wearers of glasses/contact lenses for distance vision differs between men and women
+
+```{r, echo=TRUE}
+library(margins)
+margins_pwcompare <- margins(model3, variables = "gender", pwcompare = TRUE)
+summary(margins_pwcompare)
+```
+We also find evidence that women are much less likely to wear glasses/contact lenses than men.
+
+
+# Problem 2 - Sakila
+
+## a. What year is the oldest movie from, and how many movies were released in that year?
+
+```{r, echo=TRUE}
+library(DBI)
+library(RSQLite)
+
+sakila <- dbConnect(SQLite(), "C:/Users/Feixing/Desktop/stats 506/data/Problem Set 3/sakila_master.db")
+
+dbGetQuery(sakila, "
+SELECT release_year, COUNT(*) AS movie_count
+  FROM film
+GROUP BY release_year
+ORDER BY release_year ASC
+           ")
+```
+
+The oldest movie from 2006, and 1000 movies were released in that year.
+
+## b. What genre of movie is the least common in the data, and how many movies are of this genre?
+
+### First, use SQL query or queries to extract the appropriate table(s), then use regular R operations on those data.frames to answer the question. 
+
+```{r, echo=TRUE}
+film_category <- dbGetQuery(sakila, "SELECT * FROM film_category")
+category <- dbGetQuery(sakila, "SELECT * FROM category")
+category_count <- table(film_category$category_id)
+min_category <- which.min(category_count)
+c(category$name[category$category_id == min_category], category_count[min_category])
+```
+### Second, use a single SQL query.
+
+```{r, echo=TRUE}
+dbGetQuery(sakila, "
+SELECT c.name AS genre, COUNT(fc.film_id) AS movie_count
+  FROM category AS c
+  JOIN film_category AS fc ON c.category_id = fc.category_id
+ GROUP BY c.name
+ ORDER BY movie_count
+ LIMIT 1
+")
+```
+
+## c. Identify which country or countries have exactly 13 customers.
+
+### First, use SQL query or queries to extract the appropriate table(s), then use regular R operations on those data.frames to answer the question.
+
+```{r, echo=TRUE}
+
+customer <- dbGetQuery(sakila, "SELECT * FROM customer")
+address  <- dbGetQuery(sakila, "SELECT * FROM address")
+city     <- dbGetQuery(sakila, "SELECT * FROM city")
+country  <- dbGetQuery(sakila, "SELECT * FROM country")
+merged1 <- merge(customer, address, by = "address_id")
+merged2 <- merge(merged1, city, by = "city_id")
+merged3 <- merge(merged2, country, by = "country_id")
+conum <- table(merged3$country)
+conum[conum == 13]
+
+```
+
+### Second, use a single SQL query.
+
+```{r, echo=TRUE}
+dbGetQuery(sakila,"
+SELECT c.country, count(*) as customer_count
+  FROM customer as cu
+  JOIN address as a on cu.address_id = a.address_id
+       JOIN city as ci on a.city_id = ci.city_id
+            JOIN country as c on ci.country_id = c.country_id
+  GROUP BY c.country
+ HAVING COUNT(*) = 13
+")
+```
+# Problem 3 - US Records
+
+## a. What proportion of email addresses are hosted at a domain with TLD “.com”?
+
+```{r, echo=TRUE}
+library(dplyr)
+
+# Load the data
+us_record <- read.csv("C:\\Users\\Feixing\\Desktop\\stats 506\\data\\Problem Set 3\\us-500.csv")
+
+# Calculate the proportion of '.com' TLDs
+com_proportion <- mean(grepl('.com$', us_record$email))
+
+# Print the result
+cat('Proportion of .com:', com_proportion)
+```
+
+## b. What proportion of email addresses have at least one non alphanumeric character in them?
+
+```{r, echo=TRUE}
+# Split the email addresses at '@' to separate the username and domain parts
+email <- strsplit(us_record$email, "@")
+
+# Extract the username
+username <- sapply(email, "[[", 1)
+
+# Extract the domain part from each email address
+domains <- sapply(email, "[[", 2)
+
+# Remove the last three characters TLD from each domain to focus on the main domain part
+domains <- gsub("\\.[a-z]{3}$", "", domains)
+
+# Check for any non-alphanumeric characters in the usernames
+username_nonalphanumeric <- grepl("[^a-zA-Z0-9]", username)
+
+# Check for any non-alphanumeric characters in the domains
+domain_nonalphanumeric <- grepl("[^a-zA-Z0-9]", domains)
+
+# Calculate the proportion of email addresses that contain non-alphanumeric characters
+mean(username_nonalphanumeric | domain_nonalphanumeric)
+```
+
+## c. What are the top 5 most common area codes amongst all phone numbers?
+
+```{r, echo=TRUE}
+# Use the substr function to extract the first three digits from phone number
+phone1area <- substr(us_record$phone1, 1, 3)
+phone2area <- substr(us_record$phone2, 1, 3)
+
+# Use sort function to sort the frequency of occurrence of area in decreasing
+top5area_codes <- sort(table(c(phone1area, phone2area)), decreasing = TRUE)[1:5]
+print("Top 5 most common area codes:")
+print(top5area_codes)
+```
+
+## d. Produce a histogram of the log of the apartment numbers for all addresses.
+
+```{r, echo=TRUE}
+# Load the library
+library(ggplot2)
+
+#Use the regmatches and regexpr functions to extract the contained number
+apartment_num <- regmatches(us_record$address, regexpr('[0-9]+$', us_record$address))
+
+# Converts the extracted string apartment numbers to numeric numbers
+log_apartment_numbers <- log(as.numeric(apartment_num))
+
+# Use ggplot2 to create a histogram
+ggplot(data = data.frame(log_apartment_numbers), aes(x = log_apartment_numbers)) +
+  geom_histogram(binwidth = 0.5, fill = "blue", color = "black") +
+  labs(title = "Histogram of Log of Apartment Numbers",
+       x = "Log of Apartment Number", y = "Frequency")
+```
+
+## e. Examine whether the apartment numbers appear to follow Benford’s law. Do you think the apartment numbers would pass as real data?
+
+```{r, echo=TRUE}
+# Extract the first digit
+first_digits <- substring(apartment_num, 1, 1) %>% as.numeric()
+
+# Calculate the distribution of the first digit
+digit_distribution <- table(first_digits) / length(first_digits)
+
+# Theoretical distribution of Bayford's law
+benford_distribution <- log10(1 + 1/(1:9))
+
+# Plot actual distribution versus the theoretical distribution of Bayford's law
+df <- data.frame(Digit = 1:9, Actual = as.numeric(digit_distribution[as.character(1:9)]), Benford = benford_distribution)
+ggplot(df, aes(x = Digit)) +
+  geom_bar(aes(y = Actual, fill = "Actual"), stat = "identity") +
+  geom_line(aes(y = Benford, group = 1, colour = "Benford"), size = 1.5) +
+  labs(title = "Comparison of First Digit Distribution with Benford's Law",
+       x = "First Digit",
+       y = "Proportion") +
+  scale_fill_manual(name = "Legend", values = c(Actual = "blue")) +
+  scale_colour_manual(name = "Legend", values = c(Benford = "red")) +
+  theme_minimal()
+```
+
+According to the comparison of Benford’s law with the actual data distribution, it can be found that the apartment numbers do not pass as real data. This set of data shows like a uniform distribution, without satifying Benford’s law. 
+
+
+# References and Data Sources
+
+The datasets used in this project are obtained from the following sources:
+
+- **National Health and Nutrition Examination Survey (NHANES) Data**:Includes the Vision (VIX_D) and Demographic (DEMO_D) data from the years 2005-2006. These datasets are from (https://wwwn.cdc.gov/nchs/nhanes/search/datapage.aspx?Component=Examination&CycleBeginYear=2005). The Vision data assess visual acuity and refractive error across the U.S. population, while the Demographic data provides detailed demographic information on sampled individuals and families.
+
+- **Sakila Database**: This database was discussed in class and is available for download from the following link: (https://github.com/bradleygrant/sakila-sqlite3).
+
+- **US - 500 Records Data**: This dataset was downloaded from (https://www.briandunning.com/sample-data/) and imported into R. It is entirely fictitious data, used to answer specific questions posed in the assignment.
+
+# Methods and Implementation
+
+All data analyses were performed in the R environment, employing a range of techniques including data import, data cleaning, statistical analysis, and result visualization.
+
+# Code and Documentation Repository
+
+This document and related code are hosted on GitHub for review and sharing purposes. Access link: [GitHub Repository Link](https://github.com/KKKaiMao/stats506-coursework)
+
+# Acknowledgements
+
+Thanks to the course instructors and teaching assistants for their guidance on this assignment. Thanks to all data providers for supporting open data.
+
+# Notes
+
+The analyses in this document are for academic purposes only, intended to fulfill the requirements of a statistics course. While every reasonable effort has been made to ensure the accuracy of the analysis results, the content of this document represents only the views of the author.
+
+
+
+
+
+
+
+
+
+
