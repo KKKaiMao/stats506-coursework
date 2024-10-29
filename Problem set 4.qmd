@@ -1,0 +1,451 @@
+---
+title: "Problem set 4"
+author: "Kai Mao"
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    self-contained: true
+    embed-resources: true
+  pdf:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    includes:
+      in-header: header.tex
+---
+
+# Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+# Problem 1 - Tidyverse
+
+Install and load the package nycflights13.
+
+```{r, echo=TRUE}
+library(nycflights13)
+library(tidyverse)
+```
+
+## a.Generate a table 
+
+```{r, echo=TRUE}
+# Calculate the mean and median departure delays for each airport
+departure_delays <- flights %>%
+  group_by(origin) %>%
+  summarise(
+    mean_departure_delay = mean(dep_delay, na.rm = TRUE),
+    median_departure_delay = median(dep_delay, na.rm = TRUE),
+    flights_count = n()
+  ) %>%
+  ungroup() %>%
+  filter(flights_count >= 10) %>%
+  arrange(desc(mean_departure_delay)) %>%
+  left_join(airports, by = c("origin" = "faa")) %>%
+  select(name, mean_departure_delay, median_departure_delay)
+
+# Output 
+print(departure_delays)
+
+# Calculate the mean and median arrival delays for each airport
+arrival_delays <- flights %>%
+  group_by(dest) %>%
+  summarise(
+    mean_arrival_delay = mean(arr_delay, na.rm = TRUE),
+    median_arrival_delay = median(arr_delay, na.rm = TRUE),
+    flights_count = n()
+  ) %>%
+  ungroup() %>%
+  filter(flights_count >= 10) %>%
+  arrange(desc(mean_arrival_delay)) %>%
+  left_join(airports, by = c("dest" = "faa")) %>%
+  select(name, mean_arrival_delay, median_arrival_delay)
+
+# Output
+print(arrival_delays)
+```
+
+## b. How many flights did the aircraft model with the fastest average speed take? 
+
+```{r, echo=TRUE}
+# Find the aircraft model with the fastest average speed
+fastest_aircraft <- flights %>%
+  left_join(planes, by = "tailnum") %>%
+  group_by(model) %>%
+  summarise(
+    average_speed = mean(distance / air_time * 60, na.rm = TRUE),  # 转换成每小时英里
+    flights_count = n()
+  ) %>%
+  arrange(desc(average_speed)) %>%
+  slice(1) %>%
+  select(model, average_speed, flights_count)
+
+# Output
+print(fastest_aircraft)
+```
+
+
+# Problem 2 - get_temp()
+
+## Code
+
+```{r, echo=TRUE}
+#' Calculate the average temperature for a given month and year
+#'
+#' This function calculates the average temperature for a specified month and year.
+#' Users can specify if the output should be in Celsius and can provide their own
+#' function to compute the mean.
+#'
+#' @param month The month as a numeric (1-12) or as a full month name (e.g., "January").
+#' @param year The year as a numeric value, specifically between 1997 and 2000 for the dataset used.
+#' @param data The data frame containing temperature data with columns named 'temp', 'month_numeric', and 'year'.
+#' @param celsius Logical, indicating whether to convert the temperature to Celsius. Default is FALSE.
+#' @param average_fn The function to use for computing the average temperature. Default is \code{mean}.
+#' 
+#' @return Numeric, the average temperature for the given month and year, in the specified unit.
+#' @export
+#'
+#' @examples
+#' get_temp("Apr", 1999, data = nnmaps, celsius = TRUE)
+
+# load the library
+library(tidyverse)
+
+# Define the get_temp function
+get_temp <- function(month, year, data, celsius = FALSE, average_fn = mean){
+  tryCatch({
+    # Normalize month input to numeric if it is a string
+    if (month %>% is.character){
+      month_name <- c("January", "February", "March", "April", "May", "June", 
+                    "July","August", "September", "October", "November", "December")
+      month %>%
+      match.arg(month_name) %>%
+      '=='(month_name) %>%
+      which -> month
+      }
+    # Validate the month input
+    else if (month %>% is.numeric){
+      if (!month %in% 1:12){
+        stop("Month value is not 1 to 12.")
+      }
+    }
+    else {
+      stop("Month is not character or numeric.")
+    }
+    # Validate the year input
+    if (year %>% is.numeric){
+      if (year < 1997 | year > 2000){
+        stop("Year value is not 1997 to 2000.")
+      }
+    }
+    else {
+      stop("Year is not numeric.")
+    }
+    # Ensure average_fn is a function
+    if(!(average_fn %>% is.function)){
+      stop("average_fn is not a function.")
+    }
+  
+  # Process the data to calculate the average temperature
+  result <- data %>% 
+    select(temp, month_numeric, year) %>% 
+    rename(data_year = year) %>% 
+    filter(data_year == year, month_numeric == month) %>% 
+    summarise(average_temperature = average_fn(temp), na.rm = TRUE) %>% 
+    mutate(average_temperature = if (celsius) (average_temperature - 32) * 5/9 else average_temperature) %>%
+    pull(average_temperature)
+
+  # Return the average temperature
+  return(result)
+  }, error = function(e) {
+    warning(e$message)
+    NA 
+  })
+}
+```
+
+
+## Prove code works by evaluating the following.
+
+```{r, echo=TRUE}
+nnmaps <- read.csv("C:\\Users\\Feixing\\Desktop\\stats 506\\data\\Problem Set 4\\chicago-nmmaps.csv")
+get_temp("Apr", 1999, data = nnmaps)
+```
+
+```{r, echo=TRUE}
+get_temp("Apr", 1999, data = nnmaps, celsius = TRUE)
+```
+
+```{r, echo=TRUE}
+get_temp(10, 1998, data = nnmaps, average_fn = median)
+```
+
+```{r, echo=TRUE}
+get_temp(13, 1998, data = nnmaps)
+```
+
+```{r, echo=TRUE}
+get_temp(2, 2005, data = nnmaps)
+```
+
+```{r, echo=TRUE}
+get_temp("November", 1999, data =nnmaps, celsius = TRUE,
+         average_fn = function(x) {
+           x %>% sort -> x
+           x[2:(length(x) - 1)] %>% mean %>% return
+         })
+```
+
+# Problem 3 - Visualization
+
+## a. Is there a change in the sales price in USD over time?
+
+### Code
+
+```{r, echo=TRUE}
+# Load the necessary libraries
+library(ggplot2)
+library(dplyr)
+library(ggrepel)  # For better label placement
+
+# Load the data
+art_sales <- read.csv("C:\\Users\\Feixing\\Desktop\\stats 506\\data\\Problem Set 4\\df_for_ml_improved_new_market.csv")
+
+# Prepare the data for plotting
+yearly_prices <- art_sales %>%
+  group_by(year) %>%
+  summarise(
+    mean_price = mean(price_usd, na.rm = TRUE),
+    median_price = median(price_usd, na.rm = TRUE),
+    q1_price = quantile(price_usd, 0.25, na.rm = TRUE),
+    q3_price = quantile(price_usd, 0.75, na.rm = TRUE)
+  ) %>%
+  pivot_longer(
+    cols = c(mean_price, median_price, q1_price, q3_price),
+    names_to = "statistic",
+    values_to = "price"
+  )
+
+# Plot the data with enhanced visualization features
+plot <- ggplot(yearly_prices, aes(x = year, y = price, color = statistic)) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  geom_text_repel(
+    aes(label = round(price, 2)),
+    nudge_y = 2000,  # Adjust based on your data scale
+    size = 3
+  ) +
+  labs(
+    title = "Change in the Sales Price Over Time by Statistics",
+    x = "Year",
+    y = "Price (USD)",
+    color = "Statistics"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    plot.caption = element_text(hjust = 0, face = "italic"),
+    legend.position = "right"
+  ) +
+  scale_color_manual(values = c("blue", "red", "green", "purple"), 
+                     labels = c("Mean", "Median", "1st Quartile", "3rd Quartile"), 
+                     name = "Statistics")
+
+# Print the plot
+print(plot)
+
+```
+### Conclusion
+Absolutely, there is a change in the sales price in USD over time.  
+
+The chart shows the trend of the sale price of art from 1997 to 2012. As can be clearly seen from the chart, selling prices have experienced significant fluctuations, especially between 2004 and 2008, when prices rose significantly and reached their peak. Prices have since fallen back, but the overall trend remains upward through 2012.
+
+## b. Does the distribution of genre of sales across years appear to change?
+
+### Code
+
+```{r,echo=TRUE}
+# Load the necessary libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Load the data
+art_sales <- read.csv("C:\\Users\\Feixing\\Desktop\\stats 506\\data\\Problem Set 4\\df_for_ml_improved_new_market.csv")
+
+# Gather genre data for easier plotting
+art_sales_genre <- art_sales %>%
+  gather(key = "genre", value = "value", starts_with("Genre___")) %>%
+  filter(value == 1) %>%
+  group_by(year, genre) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Calculate proportions
+genre_distribution <- art_sales_genre %>%
+  group_by(year) %>%
+  mutate(total = sum(count)) %>%
+  ungroup() %>%
+  mutate(frequency = count / total)
+
+# Plotting the distribution of genre sales over years
+plot <- ggplot(genre_distribution, aes(x = year, y = frequency, fill = genre)) +
+  geom_area(position = "stack", color = "black", size = 0.25) + 
+  # Color-blind friendly palette
+  scale_fill_brewer(palette = "Set1", name = "Genre") +
+  labs(
+    title = "Distribution of Art Sales Genre Across Years",
+    x = "Year",
+    y = "Proportion",
+    fill = "Genre",
+    caption = "Data source: df_for_ml_improved_new_market.csv\nNote: Each color represents a different genre of art sales, 
+    illustrating changes in genre popularity over time."
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    plot.caption = element_text(hjust = 0, face = "italic"),
+    legend.position = "right"
+  )
+
+# Print the plot
+print(plot)
+
+```
+
+### Conclusion
+The provided stacked area chart illustrates changes in the distribution of art sales genres over the years from 2000 to 2012. It clearly shows that the popularity of different art genres has fluctuated over time.
+
+**Painting (Genre_Painting):** This category maintained a significant proportion throughout the period, although there was a decline after 2008.
+
+**Photography (Genre_Photography):** The popularity of photography increased from 2000 to 2004 and then stabilized, representing a significant share of the art sales.
+
+**Print (Genre_Print):** The proportion of prints was zero before 2004 but showed a noticeable upward trend afterward.
+
+**Sculpture (Genre_Sculpture):** The presence of sculptures in the market has been relatively stable across the observed years.
+
+**Others (Genre_Others):** Initially, this category maintained a significant proportion but began to decrease significantly starting in 2004, stabilizing post-2008.
+
+## c. How does the genre affect the change in sales price over time?
+
+### Code
+
+```{r, echo=TRUE}
+# Load necessary libraries
+library(tidyverse)
+
+# Load data
+art_sales <- read.csv("C:\\Users\\Feixing\\Desktop\\stats 506\\data\\Problem Set 4\\df_for_ml_improved_new_market.csv")
+
+# Prepare the data for plotting specific genre averages
+genre_data <- art_sales %>%
+  select(year, price_usd, Genre___Painting, Genre___Photography, Genre___Print, Genre___Sculpture, Genre___Others) %>%
+  mutate(
+    Genre___Painting = if_else(Genre___Painting == 1, price_usd, NA_real_),
+    Genre___Photography = if_else(Genre___Photography == 1, price_usd, NA_real_),
+    Genre___Print = if_else(Genre___Print == 1, price_usd, NA_real_),
+    Genre___Sculpture = if_else(Genre___Sculpture == 1, price_usd, NA_real_),
+    Genre___Others = if_else(Genre___Others == 1, price_usd, NA_real_)
+  ) %>%
+  group_by(year) %>%
+  summarise(across(starts_with("Genre"), ~mean(., na.rm = TRUE), .names = "mean_{.col}"))
+
+# Prepare the yearly average prices data
+yearly_prices <- art_sales %>%
+  group_by(year) %>%
+  summarise(mean_price = mean(price_usd, na.rm = TRUE))
+
+# Filter out years where all genre values are NA
+long_genre_data <- genre_data %>%
+  filter(rowSums(is.na(across(starts_with("Genre")))) < ncol(.) - 1) %>%
+  # Pivot the data longer for plotting
+  pivot_longer(
+    cols = starts_with("mean_"),
+    names_to = "genre",
+    values_to = "mean_price",
+    names_prefix = "mean_"
+  ) %>%
+  drop_na(mean_price)
+
+# Plot the changes in sales price over time by art genre
+plot <- ggplot(long_genre_data, aes(x = year, y = mean_price, color = genre, group = genre)) +
+  geom_line() +
+  geom_point() +
+  # Add the average yearly prices line
+  geom_line(data = yearly_prices, aes(x = year, y = mean_price, group = 1, color = "Yearly Average"), linetype = "dashed") + 
+  scale_color_manual(
+    values = c("red", "blue", "green", "purple", "orange", "black"),
+    labels = c("Genre_Others", "Genre_Painting", "Genre_Photography", "Genre_Print", "Genre_Sculpture", "Yearly Average"),
+    name = "Art Genre"
+  ) +
+  labs(
+    title = "Change in Sales Price Over Time by Art Genre",
+    x = "Year",
+    y = "Average Sales Price (USD)",
+    color = "Art Genre",
+    caption = "Data source: df_for_ml_improved_new_market.csv\nNote: Each color represents a different genre of art sales, illustrating changes in sales price over time."
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 14),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    legend.position = "right",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    plot.caption = element_text(hjust = 0, face = "italic"),
+  ) +
+  scale_y_continuous(labels = scales::comma)
+
+# Print the plot
+print(plot)
+
+```
+
+### Conclusion
+
+From **Question a:** Overall, the average sale price of art peaked between 2004 and 2008 and has since declined significantly.
+
+For the different genres
+
+**Painting (Genre_Painting):** Prices were relatively low until 2004, but rose after 2008 and stabilized thereafter. Painting prices are usually below the annual average.
+
+**Photography (Genre_Photography):** Sales prices are volatile, reaching a significant peak in 2008 in particular. Prices for Photography are often higher than the annual average.
+
+**Print (Genre_Print):** Sales price volatility rose, reaching a peak in 2008, after which it declined sharply. Occasionally above the annual average.
+
+**Sculpture (Genre_Sculpture):** It is relatively stable, with small price fluctuations and small increases after 2002, showing that the market value of this art type is relatively stable, and most of the time slightly below the annual average price.
+
+**Others (Genre_Others):** Prices rose significantly between 2006 and 2008, but have since fallen. It is always below the annual average.
+
+# References and Data Sources
+
+The datasets used in this project are obtained from the following sources:
+
+- **nycflights13 Data**: Provides airline on-time data for all flights departing NYC in 2013. This comprehensive dataset includes metadata on airlines, airports, weather, and planes. Available from the Comprehensive R Archive Network (CRAN) at [https://CRAN.R-project.org/package=nycflights13](https://CRAN.R-project.org/package=nycflights13). Maintained by Hadley Wickham.
+
+- **Chicago NMMAPS Data**: The National Morbidity and Mortality Air Pollution Study (NMMAPS) data used in this project focus on the Chicago area from 1997 to 2000. This time-series dataset is employed to examine the relationship between air pollutants and mortality rates. The dataset is used for illustrative purposes to plot the ozone levels over time. [Data source link](https://dept.stat.lsa.umich.edu/~jerrick/courses/stat506_f24/data/chicago-nmmaps.csv).
+
+- **df_for_ml_improved_new_market**: This dataset enumerates characteristics of art sales, including the sale prices and details about the artworks sold. It is intended for creating publication-ready plots that elucidate market trends and valuations in art sales. More information and dataset download are available at [Repository Link](https://springernature.figshare.com/articles/dataset/Buying_a_Work_of_Art_or_an_Artist_Exploring_the_Impact_of_Visual_and_Social_Features_on_Art_Prices/24746268?file=43477938).
+
+# Methods and Implementation
+
+All data analyses were performed in the R environment, employing a range of techniques including data import, data cleaning, statistical analysis, and result visualization.
+
+# Code and Documentation Repository
+
+This document and related code are hosted on GitHub for review and sharing purposes. Access link: [GitHub Repository Link](https://github.com/KKKaiMao/stats506-coursework)
+
+# Acknowledgements
+
+Thanks to the course instructors and teaching assistants for their guidance on this assignment. Thanks to all data providers for supporting open data.
+
+# Notes
+
+The analyses in this document are for academic purposes only, intended to fulfill the requirements of a statistics course. While every reasonable effort has been made to ensure the accuracy of the analysis results, the content of this document represents only the views of the author.
