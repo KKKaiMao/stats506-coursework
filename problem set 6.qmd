@@ -1,0 +1,214 @@
+---
+title: "Problem set 6"
+author: "Kai Mao"
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    self-contained: true
+    embed-resources: true
+  pdf:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    includes:
+      in-header: header.tex
+---
+
+# Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+# Problem 1 Stratified Bootstrapping
+
+Load the necessary libraries.
+
+```{r, echo=TRUE}
+library(DBI)
+library(tidyverse)
+library(RSQLite)
+library(parallel)
+library(future)
+```
+
+
+## a. Calculate the average RF for each team in the Fielding table.
+
+```{r, echo=TRUE}
+# Load Data
+lahman <- dbConnect(RSQLite::SQLite(), "./lahman_1871-2022.sqlite")
+# Obtain the data of teamID, PO, A, InnOuts
+fielding_data <- na.omit(dbGetQuery(lahman, "SELECT teamID, PO, A, InnOuts FROM Fielding WHERE PO >= 0 AND A >= 0 AND InnOuts > 0"))
+dbDisconnect(lahman)
+# Calculate The average RF 
+calculate_rf <- function(fielding_data) {
+  fielding_data$RF <- with(fielding_data, 3 * (PO + A) / InnOuts)
+  RF_means <- aggregate(RF ~ teamID, data = fielding_data, FUN = mean, na.action = na.omit)
+  return(RF_means)
+}
+# Call the function and display the result
+RF_summary <- calculate_rf(fielding_data)
+print(RF_summary)
+```
+
+
+### 1. Without any parallel processing
+```{r, echo=TRUE}
+time1 <-system.time({
+  num_bootstraps <- 1100
+  # Create a list of each team's data
+  unique_teams <- unique(fielding_data$teamID)
+  team_data_list <- vector('list', length = length(unique_teams))
+  for (i in 1:length(unique_teams)) {
+    team_data_list[[i]] <- fielding_data[fielding_data$teamID == unique_teams[i],]
+  }
+
+  # Create bootstrap samples
+  bootstrap_samples_naive <- vector('list', num_bootstraps)
+
+  # Define a function to sample the data for each team
+  for (i in 1:num_bootstraps) {
+    sample_from_team <- function(team_data) {
+      team_data[sample(1:nrow(team_data), size = nrow(team_data), replace = TRUE), ]
+    }
+    # Combine the sampled data from all teams
+    bootstrap_samples_naive[[i]] <- Reduce(rbind, lapply(team_data_list, sample_from_team))
+  }
+})
+print(time1)
+```
+
+### 2. Using parallel processing with the parallel package.
+```{r, echo=TRUE, warning=FALSE}
+time2 <- system.time({
+    num_bootstraps <- 1100
+  # Create a list of each team's data
+  unique_teams <- unique(fielding_data$teamID)
+  team_data_list <- split(fielding_data, fielding_data$teamID)
+  
+  # Define a function to sample the data for each team
+  generate_bootstrap <- function(iter) {
+    sample_one_team <- function(team_data) {
+      team_data[sample(1:nrow(team_data), size = nrow(team_data), replace = TRUE), ]
+    }
+  
+    # Combine the sampled data from all teams
+    do.call(rbind, lapply(team_data_list, sample_one_team))
+  }
+  
+  # Use parallel processing to speed up bootstrapping generation
+  bootstrap_samples_parallel <- mclapply(1:num_bootstraps, generate_bootstrap, mc.cores = 18)
+})
+print(time2)
+```
+
+### 3. Using futures with the future package.
+```{r, echo=TRUE, warning=FALSE}
+time3 <- system.time({
+  num_bootstraps <- 1100
+  plan(multisession, workers = 18)
+
+  # Create a list of each team's data
+  unique_teams <- unique(fielding_data$teamID)
+  team_data_list <- split(fielding_data, fielding_data$teamID)
+
+  # Define a function to sample the data for each team
+  bootstrap_samples_future <- lapply(seq_len(num_bootstraps), function(x) {
+    future({
+      do.call(rbind, lapply(team_data_list, function(team_data) {
+        sampled_indices <- sample(1:nrow(team_data), size = nrow(team_data), replace = TRUE)
+        team_data[sampled_indices, ]
+      }))
+    }, seed = TRUE) %>% value
+  })
+})
+print(time3)
+```
+
+
+## b. Generate a table showing the estimated RF and associated standard errors for the teams with the 10 highest RF from the three approaches.
+
+```{r, echo=TRUE}
+# Define function calculate RF for single sample
+calculate_rf <- function(sample) {
+  sample$RF <- 3 * (sample$PO + sample$A) / sample$InnOuts
+  result <- aggregate(RF ~ teamID, data = sample, FUN = mean)
+  result$RF[is.infinite(result$RF)] <- 0  # Fix division by zero issues
+  return(result)
+}
+
+# Calculate mean RF and SE for a list of samples
+calc_metrics <- function(samples) {
+  results <- mclapply(samples, calculate_rf, mc.cores = 18)
+  combined_data <- do.call(rbind, results)
+  final_results <- aggregate(RF ~ teamID, data = combined_data, 
+                             FUN = function(x) c(mean = mean(x), 
+                                                 se = sd(x) / sqrt(length(x))))
+  return(final_results)
+}
+
+# Calculate metrics for each approach
+naive_results <- calc_metrics(bootstrap_samples_naive)
+parallel_results <- calc_metrics(bootstrap_samples_parallel)
+future_results <- calc_metrics(bootstrap_samples_future)
+
+# Helper function to display the top 10 results
+display_top_rf <- function(results) {
+  results %>%
+    mutate(
+      RF_value = RF[, 1],
+      SE_value = RF[, 2]
+    ) %>%
+    select(teamID, RF_value, SE_value) %>%
+    slice_max(order_by = RF_value, n = 10)
+}
+
+# Display the results
+cat("Results from the Naive Method:\n")
+print(display_top_rf(naive_results))
+
+cat("\nResults from the Parallel Method:\n")
+print(display_top_rf(parallel_results))
+
+cat("\nResults from the Future Method:\n")
+print(display_top_rf(future_results))
+```
+
+
+## c. Report and discuss the performance difference between the versions.
+
+In assessing the three different methods for estimating the "Range Factor" (RF) within baseball statistics, there are clear differences in performance among the approaches:  
+
+**Naive Method (Without Parallel Processing):**
+This traditional approach, while straightforward and easy to understand, suffers from the lowest efficiency due to its lack of parallel processing capabilities. The sequential nature of this method becomes particularly cumbersome when generating a large number of bootstrap samples, as each sample generation waits for the completion of the previous one, leading to significant increases in processing time.  
+
+**Parallel Method (Using the Parallel Package):**
+The method employing the parallel package significantly improves the efficiency of sample generation. By distributing the tasks across multiple cores, where each core processes its assigned data independently, the overall execution time is drastically reduced. This method demonstrates the advantages of parallel computation when dealing with large datasets and intensive computational tasks.  
+
+**Future Method (Using the Future Package):**
+Although the future package offers flexible mechanisms for concurrent computations, theoretically poised to deliver high performance, its practical performance in this experiment was somewhat lagging. Potential reasons might include the complexity of resource scheduling and managing concurrent tasks, which, without optimization, could slow down overall performance.  
+
+In summary, the choice of method should depend on the specific requirements of the application and the availability of resources. For scenarios requiring rapid processing of large data volumes, the parallel method provides superior performance. For situations demanding complex concurrent task handling, while the future method offers high flexibility and potential advantages, it might require finer resource management and system optimization to realize its full potential.
+
+# References and Data Sources
+
+The dataset used in this project are obtained from the following sources:
+
+- **Lahman Data**: This dataset encompasses comprehensive historical data on baseball spanning from 1871 to 2022. This dataset is essential for analyzing trends and performance metrics within the realm of professional baseball. The complete dataset is publicly available for download from the GitHub repository at https://github.com/jknecht/baseball-archive-sqlite.
+
+# Methods and Implementation
+
+All data analyses were performed in the R environment, employing a range of techniques including data import, data cleaning, statistical analysis, and result visualization.
+
+# Code and Documentation Repository
+
+This document and related code are hosted on GitHub for review and sharing purposes. Access link: [GitHub Repository Link](https://github.com/KKKaiMao/stats506-coursework)
+
+# Acknowledgements
+
+Thanks to the course instructors and teaching assistants for their guidance on this assignment. Thanks to all data providers for supporting open data.
+
+# Notes
+
+The analyses in this document are for academic purposes only, intended to fulfill the requirements of a statistics course. While every reasonable effort has been made to ensure the accuracy of the analysis results, the content of this document represents only the views of the author.
